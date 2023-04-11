@@ -1,0 +1,119 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © bright_infinite
+// =============================================================================
+// https://www.tradingview.com/pine-script-docs/en/v5/language/Arrays.html#using-an-array-as-a-stack
+// =============================================================================
+//@version=5
+indicator("[CBB] Rising Falling Color Band", shorttitle="Rising Falling Color Band")
+// -----------------------------------------------------------------------------
+len                 = input.int(50, title="MA Length")
+window              = input.int(3, title="Lookback Window")
+vis_squeeze         = input.bool(true, title="Show Squeeze Color")
+vis_squeeze_band    = input.bool(false, title="Show Squeeze Band")
+vis_meanrev_zone    = input.bool(false, title="Show Mean Reversion Zone")
+vis_trend_zones     = input.bool(false, title="Show Trend Zones")
+inp_col_dark        = input.color(color.rgb(200,200,200,90), title="Channel Color (dark)")
+inp_col_light       = input.color(color.rgb(0,0,0,0), title="Channel Color (light)")
+inp_col_mode        = input.bool(true, title="Dark Mode")
+
+// =============================================================================
+//  MOVING AVS
+// =============================================================================
+ochl                = ta.ema(open-close[window] + hl2, len)
+hlhl                = ta.ema(high-low[window]   + hl2, len)
+hllc                = ta.ema(high-low[window]   + low-close + hl2, len)
+hlhc                = ta.ema(high-low[window]   + high-close + hl2, len)
+lchc                = ta.ema(low-close[window]  + high-close + ohlc4, len)
+
+// Mean Envelope
+ma1                 = hlhl
+ma2                 = hllc
+ma2a                = hlhc
+
+col_blk             = inp_col_light
+col_gray            = inp_col_dark
+pl_ma1              = plot(ma1, color=col_gray)
+pl_ma2              = plot(ma2, color=col_gray)
+pl_ma20             = plot(vis_meanrev_zone ? ma2a : na, color=col_blk, linewidth=2)
+pl_lchc             = plot(vis_meanrev_zone ? lchc : na, color=col_blk, linewidth=2)
+fill(pl_ma20, pl_lchc, (inp_col_mode == true ? inp_col_dark : inp_col_light))
+
+std_34              = input.float(2.5, title="Std Wide Env")
+std_34a             = input.float(1.25, title="Std wide Env a")
+
+// StDevs
+std_ma3             = ta.ema(open-close[window]+hl2 + ta.stdev(open-close[window] + hl2, len) * std_34, len)
+std_ma4             = ta.ema(open-close[window]+hl2 - ta.stdev(open-close[window] + hl2, len) * std_34, len)
+std_ma3a            = ta.ema(open-close[window]+hl2 + ta.stdev(open-close[window] + hl2, len) * std_34a, len)
+std_ma4a            = ta.ema(open-close[window]+hl2 - ta.stdev(open-close[window] + hl2, len) * std_34a, len)
+std_ma5             = ochl + ta.stdev(ochl, len) * 2.5
+std_ma6             = ochl - ta.stdev(ochl, len) * 2.5
+
+color hiBand        = color.from_gradient(low, lchc, std_ma3, color.rgb(0,0,0,100), color.red)
+color loBand        = color.from_gradient(high, std_ma4, lchc, color.red, color.rgb(0,0,0,100))
+
+pl_ma3              = plot(vis_trend_zones ? std_ma3 : na, color=color.red)
+pl_ma3a             = plot(vis_trend_zones ? std_ma3a : na, color=color.maroon)
+pl_ma4              = plot(vis_trend_zones ? std_ma4 : na, color=color.red)
+pl_ma4a             = plot(vis_trend_zones ? std_ma4a : na, color=color.maroon)
+pl_ma5              = plot(vis_squeeze_band ? std_ma5 : na, color=color.black)
+pl_ma6              = plot(vis_squeeze_band ? std_ma6 : na, color=color.black)
+
+// Color outer trend bands according to distance from outer most moving av
+fill(pl_ma3a, pl_ma3, hiBand)
+fill(pl_ma4a, pl_ma4, loBand)
+
+// Fill squeeze band
+// fill(pl_ma3, pl_ma4, color.rgb(255,0,0,95))
+// fill(pl_ma5, pl_ma6, color.rgb(0,0,0,90))
+
+// Squeeze condition/color
+cond_squeeze        = (std_ma5 < std_ma3a) and (std_ma6 > std_ma4a) and (high < std_ma5) and (low > std_ma6)
+col_squeeze         = cond_squeeze ? color.rgb(255, 221, 72) : na
+barcolor(vis_squeeze ? col_squeeze : na)
+
+
+
+// =============================================================================
+//  RISING/FALLING
+// =============================================================================
+rH                  = ta.rising(high, 5)
+vw_rH               = ta.valuewhen(rH, high, 0)
+
+fL                  = ta.falling(low, 5)
+vw_fL               = ta.valuewhen(fL, low, 0)
+
+// plot(vw_rH)
+// plot(vw_fL, color=color.red)
+
+// // -----------------------------------------------------------------------------
+// var lows = array.new_float(0)
+// flushLows = false
+
+// // Remove last element from the stack when `_cond` is true.
+// array_pop(id, cond) => cond and array.size(id) > 0 ? array.pop(id) : float(na)
+
+// if ta.rising(high, 1)
+//     // Rising highs; push a new low on the stack.
+//     array.push(lows, low)
+//     // Force the return type of this `if` block to be the same as that of the next block.
+//     bool(na)
+// else if array.size(lows) >= 4 or low < array.min(lows)
+//     // We have at least 4 lows or price has breached the lowest low;
+//     // sort lows and set flag indicating we will plot and flush the levels.
+//     array.sort(lows, order.ascending)
+//     flushLows := true
+
+// // If needed, plot and flush lows.
+// lowLevel = array_pop(lows, flushLows)
+// plot(lowLevel, "Low 1", low > lowLevel ? color.silver : color.purple, 2, plot.style_linebr)
+// lowLevel := array_pop(lows, flushLows)
+// plot(lowLevel, "Low 2", low > lowLevel ? color.silver : color.purple, 3, plot.style_linebr)
+// lowLevel := array_pop(lows, flushLows)
+// plot(lowLevel, "Low 3", low > lowLevel ? color.silver : color.purple, 4, plot.style_linebr)
+// lowLevel := array_pop(lows, flushLows)
+// plot(lowLevel, "Low 4", low > lowLevel ? color.silver : color.purple, 5, plot.style_linebr)
+
+// if flushLows
+//     // Clear remaining levels after the last 4 have been plotted.
+//     array.clear(lows)

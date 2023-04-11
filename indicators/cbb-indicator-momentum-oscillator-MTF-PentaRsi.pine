@@ -1,0 +1,243 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © bright_infinite
+// =============================================================================  
+// https://stackoverflow.com/questions/60664529/pinescript-ema-cross-stochastic-cross#60706377
+// https://www.tradingview.com/script/QfgPbWOr-Vix-FIX-Stochastic-Weights-Strategy/
+// =============================================================================  
+//@version=5
+// =============================================================================   
+indicator("[CBB] MTF Penta RSI", 
+     shorttitle="mtf penta rsi",
+     max_lines_count = 500,
+     max_labels_count = 500,
+     max_bars_back = 5000,
+     overlay=true)
+
+// ----------  Color Set
+dark_sienna     = color.rgb(34, 9, 1, 0)
+blood_red       = color.rgb(98, 23, 8, 0)
+dark_red        = color.rgb(148, 27, 12, 0)
+rust            = color.rgb(188, 57, 8, 1)
+bright_yellow   = color.rgb(200, 200, 0, 0)
+by_transp       = color.rgb(200, 200, 0, 90)
+bright_orange   = color.rgb(246, 170, 28, 0) 
+bo_transp       = color.rgb(246, 170, 28, 90)
+purp            = color.rgb(180, 100, 255, 0)
+purp_transp     = color.rgb(180, 100, 255, 90)
+aqua            = color.rgb(20, 210, 200, 0)
+aqua_transp     = color.rgb(20, 210, 200, 90)
+
+// ---------- User Input 
+vis_rsi         = input.bool(false, title="Show RSI")
+vis_trendxOver  = input.bool(false, title="Show Trend & Crossover Bar Color")
+vis_trendxUnder = input.bool(false, title="Show Trend & Crossunder Bar Color")
+vis_test50      = input.bool(true, title="Show Trend Bar Color")
+vis_test8020    = input.bool(false, title="Show 80/20 Bar Color")
+vis_bgcol       = input.bool(false, title="Show BG Col Sigs")
+
+// =============================================================================  
+// RSIs
+// =============================================================================  
+rsi_stoch1          = ta.sma(ta.rsi(close, 4), 14)      // dark_sienna
+rsi_s               = ta.rsi(close, 14)                 // bright_yellow
+rsi_m               = ta.rsi(close, 30)                 // rust
+rsi_l               = ta.rsi(close, 70)                 // dark_red
+rsi_xl              = ta.rsi(close, 120)                // blood_red
+
+// =============================================================================  
+// ARRAYS
+// =============================================================================  
+// This needs debugging.  I think it was just a proof when I built.
+var arr_stoch1      = array.new_float(5)
+var arr_stoch2      = array.new_float(5)
+
+array.set(arr_stoch1, 0, rsi_stoch1)
+array.set(arr_stoch1, 1, rsi_stoch1)
+array.set(arr_stoch1, 2, rsi_stoch1)
+array.set(arr_stoch1, 3, rsi_stoch1)
+array.set(arr_stoch1, 4, rsi_stoch1)
+
+array.set(arr_stoch2, 0, rsi_stoch1)
+array.set(arr_stoch2, 1, rsi_s)
+array.set(arr_stoch2, 2, rsi_m)
+array.set(arr_stoch2, 3, rsi_l)
+array.set(arr_stoch2, 4, rsi_xl)
+
+
+// ---------- All RSI Arrays 
+var arr_rsiAll      = array.new_float(5)
+float[] arr_sub20   = array.from(rsi_stoch1, rsi_s)
+float[] arr_over80  = array.from(rsi_stoch1, rsi_s)
+float[] arr_rsis    = array.from(rsi_stoch1, rsi_s, rsi_m, rsi_l, rsi_xl)
+
+
+// =============================================================================  
+// FUNCTIONS 
+// =============================================================================  
+
+debugArr(arr, x_bar_index, _y) =>
+    arr_string  = str.tostring(arr)
+    debug       = label.new(x=x_bar_index, y = _y, style = label.style_label_down, text=arr_string, color=color.rgb(200,200,200))
+    label.delete(debug[1])
+// debugArr(arr_rsis, bar_index, 0)
+
+xo(src, test) => 
+    bool result = na
+    ta.crossover(src, test) ? true : false
+    result
+
+nOR(arr) => 
+    bool result = true
+    for i in arr
+        if i == false
+            result := false
+        result
+
+newLine(x1, y1, x2, y2, col) =>
+    line1 = line.new(x1, y1, x2, y2, extend=extend.right, color=col, width=1, style=line.style_dashed)
+    line.delete(line1[1])
+    
+// ----- LTF Box 
+// box.new(left, top, right, bottom, border_color, border_width, border_style, extend, xloc, bgcolor, text, text_size, text_color, text_halign, text_valign, text_wrap)
+// label.new(x, y, text, xloc, yloc, color, style, textcolor, size, textalign, tooltip) → series label
+
+newBox(left, top, right, bottom, col_border, width_border, col_bg, _text, col_text) =>
+    nb = box.new(left, top, right, bottom, border_color=col_border, border_width=width_border, border_style=line.style_solid, bgcolor=col_bg, text=_text, text_size=size.small, text_color=col_text, text_halign= text.align_right, text_valign=text.align_center)
+    nl = label.new(bar_index%2, top, _text, color=col_bg, style=label.style_label_left, textcolor=col_text, size=size.small, textalign= text.align_right)
+    box.delete(nb[1])
+    label.delete(nl[1])
+    
+    // box.set_lefttop(ltf, time(in_ltf_start), res_dh[1])
+    // box.set_rightbottom(ltf, timenow, res_dl[1])
+    // box.set_bgcolor(ltf, in_col_ltf_bg)
+
+lvlTest(arr, lvl) => 
+    int result = 0
+    for i in arr
+        if i > lvl
+            result += 1
+        result
+
+lvlTest1(arr, lvl) => 
+    bool outcome = na
+    outcome := array.min(arr) > lvl ? 1 : array.max(arr) < lvl ? 0 : na
+    outcome
+
+// =============================================================================
+// SIGNAL CONDITIONS 
+// =============================================================================  
+test_50     = lvlTest1(arr_rsis, 50.0)
+test_20     = lvlTest1(arr_sub20, 20.0)
+test_80     = lvlTest1(arr_over80, 80.0)
+gt_50       = lvlTest(arr_stoch1, 50.0) > 0 ? true : false 
+gt_50a      = lvlTest(arr_stoch2, 50.0) > 0 ? true : lvlTest(arr_stoch2, 50.0) < 0 ? false : na
+
+zone_purple = (gt_50a == true) and ta.crossover(rsi_s, rsi_stoch1)
+zp_high     = ta.valuewhen(zone_purple, high, 0)
+zp_low      = ta.valuewhen(zone_purple, low, 0)
+zp_mean     = ta.valuewhen(zone_purple, hl2, 0)
+bs_zp       = ta.barssince(zone_purple)
+zp_high3    = ta.valuewhen(zone_purple, high, 15)
+zp_low3     = ta.valuewhen(zone_purple, low, 15)
+zp_mean3    = ta.valuewhen(zone_purple, hl2, 15)
+bs_zp3      = ta.barssince(zone_purple[3])
+
+zone_aqua   = (gt_50a == true) and ta.crossunder(rsi_s, rsi_stoch1)
+za_high     = ta.valuewhen(zone_aqua, high, 0)
+za_low      = ta.valuewhen(zone_aqua, low, 0)
+za_mean     = ta.valuewhen(zone_aqua, hl2, 0)
+bs_za       = ta.barssince(zone_aqua)
+
+// Bullish Levels
+newBox(bar_index[bs_zp], zp_high, bar_index, zp_low, purp, 1, purp_transp, "Purple Zone Box Test", purp)
+newLine(bar_index[bs_zp], zp_high, bar_index, zp_high, color.purple)
+newLine(bar_index[bs_zp], zp_mean, bar_index, zp_mean, color.purple)
+newLine(bar_index[bs_zp], zp_low, bar_index, zp_low, color.purple)
+
+newLine(bar_index[bs_zp], zp_high3, bar_index, zp_high3, color.purple)
+newLine(bar_index[bs_zp], zp_mean3, bar_index, zp_mean3, color.purple)
+newLine(bar_index[bs_zp], zp_low3, bar_index, zp_low3, color.purple)
+
+// Bearish Levels
+newLine(bar_index[bs_za], za_high, bar_index, za_high, color.aqua)
+newLine(bar_index[bs_za], za_low, bar_index, za_low, color.aqua)
+
+// These are barcolors based on lvlTest1 function vars above. 
+// Need to find a way to order them so they can concurrently show.
+barcolor((vis_test50) and (test_50 == 1) ? color.blue : (vis_test50) and (test_50 == 0) ? color.red : na)
+barcolor((vis_test8020) and (test_20 == 1) ? na :   (vis_test8020) and (test_20 == 0) ? color.fuchsia : na)
+barcolor((vis_test8020) and (test_80 == 0) ? na:    (vis_test8020) and (test_80 == 1) ? color.lime : na)
+
+//  Boolean barcolor/bgcolor
+_true       = (gt_50 == true) and ta.crossover(rsi_s, rsi_stoch1) ? color.yellow : na // was originally lime
+_false      = (gt_50 == false) and ta.crossunder(rsi_s, rsi_stoch1) ? color.orange : na // was originally red
+_true_a     = (gt_50a == true) and ta.crossover(rsi_s, rsi_stoch1) ? color.purple : na // was originally lime
+_false_a    = (gt_50a == true) and ta.crossunder(rsi_s, rsi_stoch1) ? color.aqua : na // was originally red
+
+
+
+// rsi_gt_80   = arr_stoch1 > 20.0
+// rsi_lt_20   = arr_stoch1 < 20.0
+
+rsi_gt_50   = array.min(arr_rsis) > 50.0
+rsi_lt_50   = array.max(arr_rsis) < 50.0
+
+xUP0        = ta.crossover(rsi_stoch1, 50.0) 
+xUP1        = ta.crossover(rsi_s, 50.0) 
+// sig0UP      = plot(ta.crossover(rsi_stoch1, 50.0) ? rsi_stoch1 : na, color = blood_red, style = plot.style_circles, linewidth = 4)
+// sig0UP1     = plot(ta.crossunder(rsi_s, 50.0) ? rsi_s : na, color = bright_yellow, style = plot.style_circles, linewidth = 4)
+
+
+// ============================================================================= 
+// DEBUG
+// ============================================================================= 
+barcolor(vis_trendxOver ? _true : na)
+barcolor(vis_trendxOver ? _false : na)
+barcolor(vis_trendxUnder ? _true_a : na)
+barcolor(vis_trendxUnder ? _false_a : na)
+
+// ------------------------ BG COLOR
+bgcolor(vis_bgcol and xUP0 ? blood_red : na)
+bgcolor(vis_bgcol and xUP1 ? bright_yellow : na)
+bgcolor(vis_bgcol ? _true : na)
+bgcolor(vis_bgcol ? _false : na)
+// bgcolor(rsi_stoch1 > 50.0 ? color.red : na)
+
+
+// col_label       = color.rgb(50,50,50,90)
+// if lvlTest(arr_stoch1, 50.0) > 0
+//     var label lbl = label.new(na, na, "", color=col_label, style = label.style_label_left)
+//     label.set_xy(lbl, bar_index[ta.barssince(lvlTest(arr_stoch1, 50.0) > 0)], 50.0)
+//     label.set_text(lbl, str.tostring(50.0, "bool"))
+    
+// if lvlTest(arr_stoch1, 50.0) == 0
+//     var label lbl = label.new(na, na, "", color=col_label, style = label.style_label_left)
+//     label.set_xy(lbl, bar_index[ta.barssince(lvlTest(arr_stoch1, 50.0) == 0)], ta.valuewhen(lvlTest(arr_stoch1, 50.0) == 0, rsi_s, 0))
+//     label.set_text(lbl, str.tostring(20.0, "bool"))
+
+   
+// =============================================================================  
+// PLOT
+// =============================================================================  
+
+// ---------- RSI 
+plot(vis_rsi ? rsi_stoch1 : na, color=dark_sienna, linewidth=2)
+plot(vis_rsi ? rsi_s : na, color=bright_yellow, linewidth=2)
+plot(vis_rsi ? rsi_m : na, color=rust, linewidth=1)
+plot(vis_rsi ? rsi_l : na, color=dark_red, linewidth=1)
+plot(vis_rsi ? rsi_xl : na, color=blood_red, linewidth=1)
+
+// ----------  Osc Levels 
+// h100        = hline(100, title="100", color=color.black, linestyle=hline.style_solid, linewidth=1)  // linestyle=hline.style_dotted,
+// h80         = hline(80, title="80", color=color.black, linestyle=hline.style_dashed, linewidth=1)
+// h70         = hline(70, title="70", color=color.black, linestyle=hline.style_dotted, linewidth=1)
+// h50         = hline(50, title="50", color=color.black, linestyle=hline.style_solid, linewidth=1)    // linestyle=hline.style_dotted,
+// h30         = hline(30, title="30", color=color.black, linestyle=hline.style_dotted, linewidth=1)
+// h20         = hline(20, title="20", color=color.black, linestyle=hline.style_dashed, linewidth=1)
+// h0          = hline(0.0, title="0", color=color.black, linestyle=hline.style_solid, linewidth=1)    // linestyle=hline.style_dotted,
+
+// fill(h80, h100, color=color.new(color.black, 90))
+// fill(h0, h20, color=color.new(color.black, 90))
+
+
+

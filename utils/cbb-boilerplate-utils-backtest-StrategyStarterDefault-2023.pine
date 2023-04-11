@@ -1,0 +1,147 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © bright_infinite
+//@version=4
+// ============================================================================= 
+strategy("[CBB] 2023 Strategy Default  ", 
+      shorttitle="2023 strat default",
+      pyramiding=0,
+      calc_on_every_tick=false,
+      initial_capital=1000000,
+      default_qty_type=strategy.percent_of_equity,
+      default_qty_value=20,
+      max_bars_back = 5000,
+      overlay = true)
+     
+// ============================================================================= 
+//              USER INPUT
+// =============================================================================        
+in_lookback                 = input(10, type=input.integer, title="in_lookback in_lookback")
+in_len_normHigh             = input(20, type=input.integer, title="Normalized High Length")
+in_len_normLow              = input(20, type=input.integer, title="Normalized Low Length")
+in_trendThresh              = input(3, type=input.integer, title="Directional Bias Threshhold")
+in_divThresh                = input(2, type = input.integer, title = "Divergence Threshhold")
+in_stratLong                = input(defval=0, type=input.integer, title="Long Strategy Selector", options = [0, 1, 2, 3, 4, 5] )
+in_stratShort               = input(defval=0, type=input.integer, title="Short Strategy Selector", options = [0, 1, 2, 3, 4, 5] )
+
+// ============================================================================= 
+//              CONSTANTS
+// =============================================================================   
+FLAT                        = strategy.position_size == 0
+LONG                        = strategy.position_size > 0
+SHORT                       = strategy.position_size < 0
+confirmed                    = barstate.isconfirmed
+entry                       = strategy.position_avg_price
+
+var lookForExit             = false   
+var tradeStopPrice          = 0.0
+var tradeTargetPrice        = 0.0
+var trailingStop            = 0.0
+var tradeExitTriggerPrice   = 0.0
+var tradeStopDistance       = 0.0
+var tradeTriggerPrice       = 0.0
+
+
+h0                          = (high + high[1]) / 2
+l0                          = (low + low[1]) / 2
+    
+normHigh                    = (high - lowest(high, in_len_normHigh)) / (highest(high, in_len_normHigh) - lowest(high, in_len_normHigh))     // * 100
+normLow                     = (low - lowest(low, in_len_normLow)) / (highest(low, in_len_normLow) - lowest(low, in_len_normLow))         // * 100
+
+// ============================================================================= 
+//              FUNCTIONS
+// =============================================================================   
+
+// ============================================================================= 
+//              VARIABLES
+// =============================================================================    
+
+
+
+// ============================================================================= 
+//              CONDITIONS
+// ============================================================================= 
+up1                         = crossover(normLow, 0.5)
+dn1                         = crossunder(normLow, 0.5)
+
+// ------------ TREND & PRIMARY SIGNALS
+bull                        = rising(normHigh, in_trendThresh) and rising(normLow, in_trendThresh)        // and both > .5
+bear                        = falling(normHigh, in_trendThresh) and falling(normLow, in_trendThresh)      // and both < .5
+eqLo                        = (normHigh == 0) and (normLow == 0) ? 1 : 0
+eqHi                        = (normHigh == 1.0) and (normLow == 1.0) ? 1 : 0
+
+// ------------ DIVERGENCES
+// hh              = highest(high, )
+hiDiv                       = (normHigh < 0.5) and (normLow > 0.5) ? 1 : 0
+regDiv                      = (normHigh > 0.5) and (normLow < 0.5) ? 1 : 0
+bearDiv                     = (rising(normLow, in_divThresh) and falling(normHigh, in_divThresh))
+bullDiv                     = (rising(normHigh, in_divThresh) and falling(normLow, in_divThresh))
+dirBullDiv                  = (bearDiv or bullDiv) and (normLow < 0.5) and (normHigh < 0.5)
+dirBearDiv                  = (bearDiv or bullDiv) and(normLow > 0.5) and(normHigh > 0.5)
+
+// ============================================================================= 
+//              RISK MANAGEMENT
+// ============================================================================= 
+
+// ============================================================================= 
+//              ORDER MANAGEMENT
+// ============================================================================= 
+L0                          = up1
+S0                          = dn1
+L1                          = bull
+S1                          = bear
+L2                          = eqLo
+S2                          = eqHi
+L3                          = hiDiv
+S3                          = regDiv
+L4                          = bullDiv
+S4                          = bearDiv
+L5                          = dirBullDiv
+S5                          = dirBearDiv
+
+
+selStratL                   = in_stratLong  == 0 ? L0 :  in_stratLong  == 1 ? L1 : in_stratLong  == 2 ? L2 : in_stratLong  == 3 ? L3 : in_stratLong  == 4 ? L4 : in_stratLong  == 5 ? L5 : na
+selStratS                   = in_stratShort == 0 ? S0 :  in_stratShort == 1 ? S1 : in_stratShort == 2 ? S2 : in_stratShort == 3 ? S3 : in_stratShort == 4 ? S4 : in_stratShort == 5 ? S5 : na
+
+// ============================================================================= 
+//          STRATEGY EXECUTION 
+// ============================================================================= 
+if(selStratL)
+    strategy.entry("Buy", strategy.long) // enter long by market if current open great then previous high
+strategy.close("Buy", selStratL) 
+
+if(selStratS)
+    strategy.entry("Sell", strategy.short) // enter long by market if current open great then previous high
+strategy.close("Sell", selStratS) //
+
+
+// ============================================================================= 
+//              PLOTS & COLORING
+// ============================================================================= 
+plot(normHigh, color=color.blue)
+plot(normLow, color=color.red)
+plot(eqLo ? 0.0 : na, color=color.green, style=plot.style_circles, linewidth=3)      // if eqLo is true, circle is plotted on 0.0
+plot(eqHi ? 1.0 : na, color=color.fuchsia, style=plot.style_circles, linewidth=3)    // if eqHi is truem circle is plotted on 1.0
+
+// plot(dirBullDiv ? normLow : na, color=color.yellow, style=plot.style_cross, linewidth=5)    // if eqHi is truem circle is plotted on 1.0
+// plot(dirBearDiv ? normHigh: na, color=color.aqua, style=plot.style_cross, linewidth=5)    // if eqHi is truem circle is plotted on 1.0
+
+// barcolor(hiDiv ? color.yellow : na)
+// barcolor(regDiv ? color.fuchsia : na)
+bgcolor(bull ? color.blue : na, transp=50)
+bgcolor(bear ? color.red : na, transp=50)
+// bgcolor(dirBearDiv ? color.orange : na, transp=50)
+// bgcolor(dirBullDiv ? color.green : na, transp=50)
+
+
+// ============================================================================= 
+//          RESOURCES 
+// ============================================================================= 
+// How to normalize time series:
+
+//     # time series normalization equation
+//     y = (x - min) / (max - min)
+
+// x ... price from input time series
+// y ... normalized time series value
+// min ... minimum price in the time seies
+// max ... maximum price of the time series 

@@ -1,0 +1,47 @@
+debugArr(arr, x_bar_index, _y) =>
+    arr_string  = str.tostring(arr)
+    debug       = label.new(x=x_bar_index, y = _y, style = label.style_label_down, text=arr_string, color=color.rgb(200,200,200))
+    label.delete(debug[1])
+// debugArr(arr_rsis, bar_index, 0)
+
+basicNewLine(x1, y1, x2, y2, col) =>
+    line1 = line.new(x1, y1, x2, y2, extend=extend.none, color=col, width=1, style=line.style_dotted)
+    line.delete(line1[1])
+    
+// FX Pips
+getForexPips() => syminfo.mintick * (syminfo.type == "forex" ? 10 : 1)
+
+// Basic New Line
+newLine(x1, y1, x2, y2, col, style) =>
+    _style = style == 'dotted' ? line.style_dotted: style == 'solid' ? line.style_solid : na
+    line1 = line.new(x1, y1, x2, y2, extend=extend.none, color=col, width=1, style=_style)
+    line.delete(line1[1])
+
+// box.new(left, top, right, bottom, border_color, border_width, border_style, extend, xloc, bgcolor, text, text_size, text_color, text_halign, text_valign, text_wrap)
+newBox(left, top, right, bottom, col_border, width_border, col_bg, _text, col_text) =>
+    nb = box.new(left, top, right, bottom, border_color=col_border, border_width=width_border, border_style=line.style_solid, bgcolor=col_bg, text=_text, text_size=size.tiny, text_color=col_text, text_halign= text.align_right, text_valign=text.align_top)
+    box.delete(nb[1])
+
+lvlTest(arr, lvl) => 
+    int result = 0
+    for i in arr
+        if i > lvl
+            result += 1
+        result
+
+arrMinMax(arr, lvl) => 
+    bool outcome = na
+    outcome := array.min(arr) > lvl ? 1 : array.max(arr) < lvl ? 0 : na
+    outcome
+
+xo(src, test) => 
+    bool result = na
+    ta.crossover(src, test) ? true : false
+    result
+
+nOR(arr) => 
+    bool result = true
+    for i in arr
+        if i == false
+            result := false
+        result

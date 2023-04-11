@@ -1,0 +1,160 @@
+// =============================================================================
+// Name:  Cody Brown 
+// Title: TimePriceZones
+// Date:  Sun Nov  1 01:00:27 CDT 2020
+// =============================================================================
+//@version=4
+strategy('[CBB] Time PriceZones-- strat TESTING',
+     shorttitle='TESTING strat Time/Price Zones',
+     overlay=true,
+     //  precision=6,
+     pyramiding=0,
+     calc_on_every_tick=false,
+     initial_capital=100000,
+     default_qty_type=strategy.percent_of_equity,
+     default_qty_value=10,
+     currency=currency.USD)
+// =============================================================================
+white       = #ffffff
+black       = #000000
+hot         = #ff01fb
+// ----- Rainbow
+green       = #8ea604
+yellow      = #f5bb00
+orange      = #ec9f05
+sunset      = #d76a03
+red         = #bf3100
+// =============================================================================
+sig         = input(defval=close, type=input.source, title="Signal Source")
+src1        = input(defval=high, type=input.source, title="Source 1")
+src2        = input(defval=low, type=input.source, title="Source 2")
+res1        = input(defval="D", type=input.resolution, title="Timeframe 1")
+res2        = input(defval="D", type=input.resolution, title="Timeframe 2")
+resBB       = input(defval="240", type=input.resolution, title="BB Timeframe")
+devBB       = input(defval=2.0, type=input.float, title="BB Deviation Mult")
+lenBB       = input(defval=10, type=input.integer, title="BB length")
+prc1        = input(defval=0.0004, type=input.float, title="Percent Range 1")
+prc2        = input(defval=0.0004, type=input.float, title="Percent Range 2")
+series1     = security(syminfo.tickerid, res1, src1, barmerge.gaps_off, barmerge.lookahead_on)
+series2     = security(syminfo.tickerid, res2, src2, barmerge.gaps_off, barmerge.lookahead_on)
+seriesBB    = security(syminfo.tickerid, resBB, close, barmerge.gaps_off, barmerge.lookahead_on)
+vis_1       = input(false, type=input.bool, title="Show Source 1")
+vis_2       = input(false, type=input.bool, title="Show Source 2")
+visBB       = input(true, type=input.bool, title="Show BB")
+
+// -----------------------------------------------------------------
+// Turn this into a function to make the range proximity conditions
+// make_chan(src, p) =>
+//     float top = src + (p / 100)*src
+//     float bot = src - (p / 100)*src
+//     [src, top, bot]
+// [chanm, chant, chanb] = make_chan(src, 5)
+// -----------------------------------------------------------------
+makeBB(src, len, mult) => 
+    basis = sma(src, len)
+    dev   = mult * stdev(src, len)
+    top   = basis + dev
+    bot   = basis - dev
+    [basis, top, bot]
+[bbm, bbt, bbb] = makeBB(seriesBB, lenBB, devBB)
+// ----------------------------------------------------------------- col_bbProx
+redFuch         = open < bbb and close < bbb ? color.fuchsia : color.red
+blueLime        = open > bbt and close > bbt ? color.lime : color.blue
+colBBProx       = color.from_gradient(hl2, bbb, bbt, redFuch, blueLime)
+// barcolor(colBBProx)
+// - color gradient hi thresh is top band low thresh is bottom band
+// - color intensifies as hl2 gets closer
+
+plot(visBB ? bbm : na, color=colBBProx, linewidth=2)
+plot(visBB ? bbt : na, color=colBBProx, linewidth=2)
+plot(visBB ? bbb : na, color=colBBProx, linewidth=2)
+
+cci_range(len, top, bot, loc)   =>
+    _cci        = cci(close, len)
+    highest     = _cci > top and _cci > bot
+    lowest      = _cci < top and _cci < bot
+    _above      = _cci > top
+    _below      = _cci < bot
+    within      = _cci < top and _cci > bot
+    where       = loc == 'highest' ? highest : loc == 'lowest' ? lowest : loc == 'above' ? _above : loc == 'within' ? within : loc == 'below' ? _below : na
+    out         = where == true ? true : false
+    
+cci14           = cci(close, 14)
+cci50           = cci(close, 50)
+cci200          = cci(close, 200)
+cci633          = cci(close, 633)
+// -----------------------------------------------------------------------------
+
+// --------------------- Test Date Range
+test_range(s, e) =>
+    time >= s and time <= e ? true : false
+ts_TZ       = 'America/Chicago'
+ts_Yr       = input(2021,   'Start Yr')
+ts_Mo       = input(7,      'Start Mo')
+ts_Day      = input(10,     'Start Day')
+ts_Hr       = input(0730,   'Start Hr')
+te_Yr       = input(2021,   'End Yr')
+te_Mo       = input(7,     'End Mo')
+te_Day      = input(21,     'End Day')
+te_Hr       = input(16,     'End Hr')
+start       = timestamp(ts_TZ, ts_Yr, ts_Mo, ts_Day, ts_Hr, 0, 0)
+end         = timestamp(ts_TZ, te_Yr, te_Mo, te_Day, te_Hr, 0, 0)
+vis_sig0    = input(true, type=input.bool, title='Show 1')
+vis_sig1    = input(true, type=input.bool, title='Show 2')
+vis_sig2    = input(true, type=input.bool, title='Show 3')
+
+// ---------- Filters
+above1      = series1 + (series1 * prc1)
+below1      = series1 - (series1 * prc1)
+above2      = series2 + (series2 * prc2)
+below2      = series2 - (series2 * prc2)
+
+// ---------- Conditions
+alert1      = sig < above1 and sig > below1
+alert2      = sig < above2 and sig > below2
+// long        =
+// short       =
+
+// ---------- Colors
+col_alert1  = alert1 ? color.red : na
+col_alert2  = alert2 ? color.blue : na
+
+// =============================================================================
+barcolor(col_alert1)
+barcolor(col_alert2)
+plot(vis_1 ? series1 : na, color=color.black, linewidth=1)
+plot(vis_2 ? series2 : na, color=color.black, linewidth=1)
+// plotshape(alert1, style=shape.triangledown, location=location.abovebar, color=col_alert1)
+// plotshape(alert2, style=shape.triangleup, location=location.belowbar, color=col_alert2)
+
+// plotchar(vis_1 and alert1, char='▼', color=col_alert1, location=location.abovebar, size=size.tiny)
+// plotchar(vis_2 and alert2, char='▲', color=col_alert2, location=location.belowbar, size=size.tiny)
+// barcolor(vis_0 and L0 and long  ? colUP : na)
+// barcolor(vis_0 and S0 and short ? colDN : na)
+// =============================================================================
+profit_target           = input(4000, title='Profit Target (Pips/Points)')
+trailing_stop_dist      = input(1000, title='Trailing Stop Distance (Pips/Points)')
+stop_level              = strategy.position_avg_price
+
+longStop                = stop_level - 500
+shortStop               = stop_level + 400
+// longStop                = low[barssince(alert1)] - .01
+// shortStop               = high[barssince(alert2)] + .01
+
+if (alert2)
+    strategy.entry("Long", strategy.long)
+    // strategy.close("Long", when=valuewhen(alert1, close, 1), comment="TP Long")
+    strategy.exit("TP Long", "Long", profit=valuewhen(alert1, close, 1), trail_points=trailing_stop_dist)  
+
+if (alert1)
+    strategy.entry("Short", strategy.short)
+    strategy.exit("TP Short", "Short", profit=valuewhen(alert2, close, 1), trail_points=trailing_stop_dist)  
+
+// strategy.exit("SL/TP", "Long", profit=profit_target,  loss=longStop, trail_points=trailing_stop_dist)  
+// strategy.exit("SL/TP", "Short", profit=profit_target, loss=shortStop, trail_points=trailing_stop_dist)  
+// strategy.exit("Close L", "Long",  profit=profit_target, loss=longStop, trail_points=trailing_stop_dist)  
+// strategy.exit("Close S", "Short", profit=profit_target, loss=shortStop, trail_points=trailing_stop_dist) 
+
+// --------------------- Alerts
+//crossover(sma(close, 60), close)
+//alertcondition(c, title = 'Alert', message = 'Alert')

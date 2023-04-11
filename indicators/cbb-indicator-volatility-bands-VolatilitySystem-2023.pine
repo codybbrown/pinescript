@@ -1,0 +1,86 @@
+//@version=5
+indicator("[CBB] 2023 System", shorttitle="2023 system", overlay = true)
+// ========================================================================= INPUT
+inp_src                     = input.source(close, 'Source')
+color   inp_col_transp      = color.rgb(0,0,0,100)
+color   inp_col_up          = color.rgb(76, 121, 255)
+color   inp_col_dn          = color.rgb(255, 40, 100, 0)
+color   inp_col_bb1         = color.rgb(56, 17, 194, 98)
+color   inp_col_bb2         = color.rgb(0,0,0,98)
+color   bullColorInput      = input.color(inp_col_up,   "Bull")
+color   bearColorInput      = input.color(inp_col_dn, "Bear")
+bool    inp_vis_bb1         = input.bool(false, 'Show BB 1', group='Visibility')
+bool    inp_vis_bb2         = input.bool(false, 'Show BB 2', group='Visibility')
+bool    inp_vis_sqz         = input.bool(false, 'Show Squeeze Color')
+
+// CCI
+int     inp_len_cci         = input.int(20, "CCI Length", minval = 8, group='CCI')
+int     inp_len_xup_cci     = input.int(250, title="CCI xUP", group='CCI')
+int     inp_len_xdn_cci     = input.int(-250, title="CCI xDN", group='CCI')
+
+// BB
+int     inp_len_bb1         = input.int(20, "BB1 Length", group="BB")
+int     inp_len_bb2         = input.int(50, "BB2 Length", group="BB")
+float   inp_mult_bb1        = input.float(3.5, "BB1 Mult", group="BB")
+float   inp_mult_bb2        = input.float(2.5, "BB2 Mult", group="BB")
+
+// ========================================================================= VARIABLES
+
+// CCI
+float   sig_cci             = ta.cci(inp_src, inp_len_cci)
+bool    xup_cci             = ta.crossover(sig_cci, inp_len_xup_cci)
+bool    xdn_cci             = ta.crossunder(sig_cci, inp_len_xdn_cci)
+float   val_cci_xup_hl2     = ta.valuewhen(xup_cci, hl2, 0)
+float   val_cci_xup_hi      = ta.valuewhen(xup_cci, high, 0)
+float   val_cci_xup_lo      = ta.valuewhen(xup_cci, low, 0)
+float   val_cci_xdn_hl2     = ta.valuewhen(xdn_cci, hl2, 0)
+float   val_cci_xdn_hi      = ta.valuewhen(xdn_cci, high, 0)
+float   val_cci_xdn_lo      = ta.valuewhen(xdn_cci, low, 0)
+int     bndx_cci_xup        = bar_index[ta.barssince(xup_cci)]
+int     bndx_cci_xdn        = bar_index[ta.barssince(xdn_cci)]
+
+// BB
+[bbm1, bbt1, bbb1]          = ta.bb(inp_src, inp_len_bb1, inp_mult_bb1)
+[bbm2, bbt2, bbb2]          = ta.bb(inp_src, inp_len_bb2, inp_mult_bb2)
+bool cond_sqeeze            = (bbt1 < bbt2) and (bbb1 > bbb2)
+
+fill(plot(inp_vis_bb1 ? bbt1 : na, color=inp_col_transp), plot(inp_vis_bb1 ? bbb1 : na, color=inp_col_transp), inp_col_bb1)
+fill(plot(inp_vis_bb2 ? bbt2 : na, color=inp_col_transp), plot(inp_vis_bb2 ? bbb2 : na, color=inp_col_transp), inp_col_bb2)
+plot(inp_vis_bb1 ? bbt1 : na, color=inp_col_up)
+plot(inp_vis_bb1 ? bbm1 : na, color=inp_col_up)
+plot(inp_vis_bb1 ? bbb1 : na, color=inp_col_up)
+plot(inp_vis_bb2 ? bbt2 : na, color=inp_col_dn)
+plot(inp_vis_bb2 ? bbm2 : na, color=inp_col_dn)
+plot(inp_vis_bb2 ? bbb2 : na, color=inp_col_dn)
+barcolor(inp_vis_sqz and cond_sqeeze ? color.yellow : na)
+
+// Prv Daily Close
+
+// Prev Daily HL Signal
+
+// OCx Variable Length
+
+// Pivots
+
+
+// ========================================================================= FUNCTIONS
+// FX Pips
+getForexPips() => syminfo.mintick * (syminfo.type == "forex" ? 10 : 1)
+
+// Basic New Line
+newLine(x1, y1, x2, y2, col, style) =>
+    _style = style == 'dotted' ? line.style_dotted: style == 'solid' ? line.style_solid : na
+    line1 = line.new(x1, y1, x2, y2, extend=extend.none, color=col, width=1, style=_style)
+    line.delete(line1[1])
+
+// ========================================================================= PLOTS
+// CCI 
+newLine(bndx_cci_xup, val_cci_xup_hl2, bar_index, val_cci_xup_hl2, inp_col_up, 'dotted')
+newLine(bndx_cci_xdn, val_cci_xdn_hl2, bar_index, val_cci_xdn_hl2, inp_col_dn, 'dotted')
+newLine(bndx_cci_xup, val_cci_xup_hi, bar_index, val_cci_xup_hi, inp_col_up, 'solid')
+newLine(bndx_cci_xup, val_cci_xup_lo, bar_index, val_cci_xup_lo, inp_col_up, 'solid')
+newLine(bndx_cci_xdn, val_cci_xdn_hi, bar_index, val_cci_xdn_hi, inp_col_dn, 'solid')
+newLine(bndx_cci_xdn, val_cci_xdn_lo, bar_index, val_cci_xdn_lo, inp_col_dn, 'solid')
+barcolor(xup_cci ? inp_col_up : na)
+barcolor(xdn_cci ? inp_col_dn : na)
+
