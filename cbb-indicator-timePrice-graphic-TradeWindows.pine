@@ -1,0 +1,30 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © bright_infinite
+
+//@version=5
+
+// Color background between user input session hours
+indicator("[CBB] Trade Windows", shorttitle = 'Trade Windows', overlay = true)
+
+// i_hour  = input.time(0000)
+i_sess          = input.session("0000-1300:123456", "Session")
+t               = time(timeframe.period, i_sess, "America/New_York")
+bgcolor(time == t ? color.rgb(0,0,0,96) : na)
+
+// Asian range
+
+
+// NY Open Range Hour - 0000-0100
+
+
+//London session
+
+
+// Lond kill xover
+
+
+// NY session
+
+
+
+

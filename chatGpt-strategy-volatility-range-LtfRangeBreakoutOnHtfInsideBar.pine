@@ -1,0 +1,62 @@
+//@version=5
+strategy('[CBB] Low Time Frame Range Breakout on HTF Inside Bar', shorttitle='LTF_RB_on_HTF_IB', overlay=true, pyramiding=0,
+     calc_on_every_tick=false,
+     initial_capital=100000,
+     default_qty_type=strategy.percent_of_equity,
+     default_qty_value=10,
+     currency=currency.USD)
+// ============================================================================= 
+// This script defines a low time frame range breakout strategy that uses higher time 
+// frame inside bars as a condition for the breakout. It also includes a time filter 
+// to only trade during the New York session (broker's timezone). You can set the low 
+// time frame and the higher time frame through the input parameters.
+// Ensure that your chart's time zone is set correctly, as the trading session's 
+// time is defined according to the chart's time zone. Modify the input parameters 
+// (time session start and end hours) as needed, depending on your broker's time or
+//  on the timezone you want to use. You can copy and paste this code in the TradingView 
+//Pine Editor and tweak it according to your requirements. Remember, it's a strategy script,
+// which implies it will work in strategy tester mode.
+// ============================================================================= 
+
+// Input parameters
+breakoutTimeframe = input('5', title='Low Time Frame (in minutes)')
+higherTimeframe = input('240', title='Higher Time Frame (in minutes)')
+enableNewYorkTime = input(true, title='Enable New York session time filter')
+newYorkSessionStart = input(defval=15, title='New York session start hour (in 24-hour format, broker\'s time)')
+newYorkSessionEnd = input(defval=21, title='New York session end hour (in 24-hour format, broker\'s time)')
+
+// Calculate the higher time frame inside bars
+srcHigh = request.security(syminfo.tickerid, higherTimeframe, high[1], barmerge.gaps_off)
+srcLow = request.security(syminfo.tickerid, higherTimeframe, low[1], barmerge.gaps_off)
+insideBar = srcLow[1] > low[2] and srcHigh[1] < high[2]
+insideBar_sig = close > ta.valuewhen(insideBar, close, 1)
+bgcolor(insideBar ? color.blue : na, transp=90)
+barcolor(insideBar ? color.red : na)
+
+
+// This doesn't work - don't use 
+inNewYorkSession(res) =>
+    t = time(res, '0930-1130:23456', 'America/New_York')
+    hourOfDay = t / 1000 / 60 / 60 % 24
+    enableNewYorkTime == false or hourOfDay >= newYorkSessionStart and hourOfDay < newYorkSessionEnd
+
+// Get low time frame range
+ltfHigh = request.security(syminfo.tickerid, breakoutTimeframe, high, barmerge.gaps_off)
+ltfLow = request.security(syminfo.tickerid, breakoutTimeframe, low, barmerge.gaps_off)
+
+// Calculate range breakout signals
+longCondition = insideBar and high > srcHigh  // and inNewYorkSession(breakoutTimeframe)
+shortCondition = insideBar and low < srcLow  // and inNewYorkSession(breakoutTimeframe)
+// longCondition = crossover(close, ltfHigh) and insideBar and inNewYorkSession(breakoutTimeframe)
+// shortCondition = crossunder(close, ltfLow) and insideBar and inNewYorkSession(breakoutTimeframe)
+
+// Execute trades using strategy.entry
+strategy.entry("Long", strategy.long, when = longCondition)
+strategy.entry("Short", strategy.short, when = shortCondition)
+
+// Plot breakout levels
+plot(ltfHigh, color=color.green, linewidth=2, title="Low Time Frame High")
+plot(ltfLow, color=color.red, linewidth=2, title="Low Time Frame Low")
+plot(srcHigh, color=color.blue, linewidth=2, title="HTF High")
+plot(srcLow, color=color.maroon, linewidth=2, title="HTF Low")
+

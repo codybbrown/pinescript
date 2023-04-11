@@ -1,0 +1,141 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © bright_infinite
+//@version=4
+// ============================================================================= 
+// The version 5 (revision 104.0 on TV) does not preserve the gradient background
+// Before auto updating to version 5, ensure the gradient will be preserved 
+// Also, despite 'divergence' in the name, there is no evidence of divergence indication
+// ============================================================================= 
+strategy("[CBB] MOM/CCI Divergence -- Strategy", 
+     shorttitle="strat MOM/CCI Divergece",
+     max_bars_back=3000,
+     pyramiding=0, 
+     calc_on_every_tick=true,
+     initial_capital=20000,
+     default_qty_type=strategy.percent_of_equity, 
+     default_qty_value=50, 
+     currency=currency.USD)
+// ----------------------------------------------------------------------------------------------------------
+black           = #000000
+aqua            = #06d6a0
+blue            = #3a86ff  
+royal           = #2d00f7
+red             = #d90429
+maroon          = #540b0e
+hot             = #ff006e
+col_vHi         = color.aqua      // #2a9d8f
+col_vLo         = #fb8500
+col_fill        = #001524
+yellow          = #E1AD21
+green1          = #00755E
+green2          = #9ACD32
+
+src_mom         = input(close, type=input.source, title="Source mom")
+src_cmo         = input(close, type=input.source, title="Source cmo")
+src_cci         = input(close, type=input.source, title="Source  cci")
+src_bb          = input(close, type=input.source, title="Source  bb")
+
+res             = input("D", type=input.resolution, options=["D", "2D", "3D", "5D", "W", "M", "3M", "15", "60", "120", "240", "480"])
+
+len_mom         = input(28, type=input.integer, options=[3, 5, 8, 10, 14, 20, 28, 34,  50, 89, 100, 141, 144, 200,  500, 633])
+len_cmo         = input(28, type=input.integer, options=[3, 5, 8, 10, 14, 20, 28, 34,  50, 89, 100, 141, 144, 200,  500, 633])
+len_cci         = input(14, type=input.integer, options=[3, 5, 8, 10, 14, 20, 28, 34,  50, 89, 100, 141, 144, 200,  500, 633])
+len_bb          = input(50, type=input.integer, options=[3, 5, 8, 10, 14, 20, 28, 34,  50, 89, 100, 141, 144, 200,  500, 633])
+dev_bb         = input(defval=3.5, type = input.float, title = 'StDev BB', options = [.5, .75, 1, 1.25, 2, 2.1, 2.2, 3, 3.1, 3.2, 3.25, 3.5])
+
+// ----------------------------------------------------------------------------------------------------------
+bb_mean(src, len) => (sma(src, len)) // sma - used as the BB mean 
+// standard dev top
+sd_top(src, len, mult) =>
+    mva = sma(src, len)
+    sdt = mva + mult * stdev(src, len)
+    sdt
+// standard dev bottom
+sd_bot(src, len, mult) =>
+    mva = sma(src, len)
+    sdb = mva - mult * stdev(src, len)
+    sdb
+    
+
+// ----------------------------------------------------------------------------------------------------------
+
+
+vis_mom         = input(true, type=input.bool, title="Show mom")
+vis_cmo         = input(true, type=input.bool, title="Show cmo")
+vis_cci         = input(true, type=input.bool, title="Show cci")
+vis_bb          = input(false, type=input.bool, title="Show bb")
+
+col_mom         = vis_mom ? color.black : na
+col_cmo         = vis_cmo ? color.black : na
+col_cci         = vis_cci ? color.black : na
+col_bb          = vis_bb  ? color.black : na
+
+mom             = mom(src_mom, len_mom) * 100
+cmo             = cmo(src_cmo, len_cmo)
+cci             = cci(src_cci, len_cci)
+
+bbm             = bb_mean(src_bb, len_bb)
+bbt             = sd_top(src_bb, len_bb, dev_bb)
+bbb             = sd_bot(src_bb, len_bb, dev_bb)
+
+colgrad_cci     = color.from_gradient(cci, -250, 250, red, royal)
+// plot(mom, color=yellow, title="MOM") // col_mom
+plot(cmo, color=black, title="CMO")
+plot(cci, color=colgrad_cci, title="CCI")
+
+plot(bbm,  color=col_bb, title="BB Mean")
+plot(bbt,  color=col_bb, title="BB Top")
+plot(bbb,  color=col_bb, title="BB Bot")
+
+// =============================================================================
+var color C_GOLD   = #CCCC00
+var color C_VIOLET = #AA00FF
+var color C_GREEN_BG = color.new(blue, 70)
+var color C_RED_BG   = color.new(red, 70)
+float i_src      = input(close, "Source")
+int   i_len      = input(20, "Length", minval = 5)
+int   i_steps    = input(50, "Gradient levels", minval = 1)
+color i_c_bull   = input(C_GOLD, "Line: Bull", inline = "11")
+color i_c_bear   = input(C_VIOLET, "Bear", inline = "11")
+color i_c_bullBg = input(C_GREEN_BG, "Background: Bull", inline = "12")
+color i_c_bearBg = input(C_RED_BG, "Bear", inline = "12")
+
+// Plot colored signal line.
+float signal    = cci(i_src, i_len)
+color c_signal  = color.from_gradient(signal, -250, 250, color.new(C_VIOLET, 0), color.new(C_GOLD, 0))
+// plot(signal, "CCI", c_signal, 2)
+
+// Detect crosses of the centerline.
+bool signalX    = cross(cmo, 0)
+bool signalXup  = crossover(cmo, 0)
+bool signalXdn  = crossunder(cmo, 0)
+sig0up          = plot(signalXup ? 0 : na, color = blue, style = plot.style_circles, linewidth = 2)
+sig0dn          = plot(signalXdn ? 0 : na, color = red, style = plot.style_circles, linewidth = 2)
+
+// Count no of bars since cross. Capping it to the no of steps from inputs.
+int gradientStep = min(i_steps, nz(barssince(signalX)))
+
+// Choose bull/bear end color for the gradient.
+color c_endColor = cmo > 0 ? i_c_bullBg : i_c_bearBg
+
+// Get color from gradient going from no color to `c_endColor`
+color c_band = color.from_gradient(gradientStep, 0, i_steps, na, c_endColor)
+p_bandTop1 = hline(250,  "Upper Band", color.silver, hline.style_solid)
+p_bandTop = hline(100,  "Upper Band", color.silver, hline.style_dotted)
+p_band0 = hline(0,  "Upper Band", color.silver, hline.style_solid)
+p_bandBot = hline(-100, "Lower Band", color.silver, hline.style_dotted)
+p_bandBot1 = hline(-250, "Lower Band", color.silver, hline.style_solid)
+fill(p_bandTop1, p_bandBot1, c_band, title = "Band")
+
+// CCI 2.5 Signals
+xup = crossover(signal, -250)
+xdn = crossunder(signal, 250)
+// breakout_down = crossunder(close,yesterdayLow)
+// breakout_fake = (close[1] > yesterdayHigh and crossunder(close, yesterdayHigh)) or (close[1] < yesterdayLow and crossover(close,yesterdayLow))
+
+// Plot the alerts
+col_signal = xup ? color.blue : xdn ? color.red : na
+barcolor(col_signal)
+plot(xup ? -250 : na, style=plot.style_circles,color=color.black, linewidth=4)
+plot(xdn ? 250 : na, style=plot.style_circles,color=color.black, linewidth=4)
+

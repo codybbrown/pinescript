@@ -1,0 +1,61 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © bright_infinite
+
+//@version=5
+strategy("[CBB] LWMA OCx 8/10 - strat ", 
+     shorttitle = "LWMAx 8/10 strat", 
+     overlay=true,
+     pyramiding=0,
+     calc_on_every_tick=false,
+     initial_capital=1000000,
+     default_qty_type=strategy.percent_of_equity,
+     default_qty_value=70,
+     currency=currency.USD)
+
+// ------------------------ Input
+in_len_fastMa       = input.int(8, 'Fast ma Length')
+in_len_slowMa       = input.int(10, 'Slow ma Length')
+in_len_hma          = input.int(100, 'HMA Length')
+in_src_fast         = input.source(close, 'Fast ma Source')
+in_src_slow         = input.source(open, 'Slow ma Source')
+
+// ------------------------ Functions
+oc(thresh) =>
+    result = (open > thresh) and (close > thresh) ? 1 : (open < thresh) and (close < thresh) ? -1 : na 
+    result
+
+// ------------------------ Vars
+wma_8       = ta.wma(in_src_fast, in_len_fastMa)   // Gray Line
+wma_10      = ta.wma(in_src_slow, in_len_slowMa) // black line
+hma         = ta.hma(close, in_len_hma) 
+_vwap       = ta.ema(ta.vwap, 20)
+
+// ------------------------ PLOTS
+plot(hma, 'HMA 50')
+plot(wma_8, color=color.rgb(0, 0, 0, 60), title = 'WMA 8')
+plot(wma_10, color=color.rgb(0, 0, 0), title = 'WMA 10')
+plot(_vwap, color=color.red, title = 'VWAP 20')
+
+// ------------------------ Signals
+// L0          = ta.crossover(wma_8, wma_10) and wma_10 < hma
+// CL0         = wma_8 < hma and open < hma
+// S0          = ta.crossunder(wma_8, wma_10) and wma_10 > hma
+// CS0         = wma_8 > hma and open > hma
+L0          = ta.crossover(wma_8, wma_10) and wma_10 > hma
+CL0         = wma_8 < hma and open < hma
+S0          = ta.crossunder(wma_8, wma_10) and wma_10 < hma
+CS0         = wma_8 > hma and open > hma
+
+
+
+if (L0)
+    // strategy.close("S0", comment = "CS0")
+    strategy.entry("L0", strategy.long)
+if (CL0)
+    strategy.close("L0", comment = "CL0")
+if (S0)
+    // strategy.close("L0", comment = "CL0")
+    strategy.entry("S0", strategy.short)
+if (CS0)
+    strategy.close("S0", comment = "CS0")
+
